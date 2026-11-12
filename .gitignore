@@ -1,5 +1,18 @@
-slprj/
-*.slxc
-*.slx.autosave
-*.mexw64
+# MATLAB / Simulink
 *.asv
+*.m~
+*.slx.autosave
+*.slx.original
+*.slxc
+*.mexw64
+slprj/
+# CAD / tool logs
+*.log
+*.bak
+# KiCad
+*-backups/
+.history/
+fp-info-cache
+# OS
+.DS_Store
+Thumbs.db

@@ -1,129 +1,46 @@
-# 🦾 GP255 Industrial Robot — Kinematics, Trajectory Planning & Simscape
+# Yaskawa GP25: Kinematics, Dynamics and Motor-Level Control in Simscape
 
-> **Mohammed Emad Said Soliman** | UHCI4H  
-> Mechatronics Engineering BSc. — University of Debrecen  
-> Faculty of Engineering | Department of Electrical Engineering and Mechatronics  
-> *Cyber-Physical Systems (CPS) — 2025/2026/II. Semester*
+Cyber-Physical Systems final project · University of Debrecen · 2025/26 spring
 
----
+<img align="right" src="images/gp25_assembly.png" width="300" alt="Yaskawa GP25 assembled from the exported CAD">
 
-## 📋 Overview
+I built a digital twin of the **Yaskawa Motoman GP25**, a 6-axis industrial arm with a 25 kg payload and about 1.7 m reach, and took it all the way from CAD to closed-loop control.
 
-This project implements **forward/inverse kinematics, circular trajectory planning, joint torque analysis, and full Simscape physical simulation** for the **Kawasaki GP255 6-DOF industrial robot arm** using the **MATLAB Robotics Toolbox** and **Simulink/Simscape Multibody**.
+**CAD → URDF → kinematics → dynamics → DC motors + gearboxes → six PID loops**
 
-The robot model was imported from **OnShape CAD** directly into Simulink via `smexportonshape`, creating a physics-based simulation with real joint constraints and geometry.
+Most class examples drive joints with ideal position commands. I wanted real motors, voltage limits and feedback in the loop, so the model behaves like the physical system.
 
----
+<br clear="right"/>
 
-## 🤖 Robot: Kawasaki GP255
+## What's in it
 
-| Property | Value |
-|----------|-------|
-| Type | 6-DOF articulated industrial robot |
-| Joints | 6 revolute joints (J1–J6) |
-| End-effector | Body6 |
-| Application | Industrial pick-and-place, welding, assembly |
-| Model source | OnShape CAD → Simscape Multibody |
+**Forward kinematics.** I set up a DH table from the CAD geometry (d₁ = 0.350 m, a₂ = 0.150 m, a₃ = 0.760 m, a₄ = 0.140 m, d₄ = 0.820 m). The hand-derived T₀⁶ matches MATLAB's `getTransform()` both at home and at a test pose.
 
-🔗 **OnShape Model:** [View on OnShape](https://cad.onshape.com/documents/08b071bf0234bff7ace22b17/w/4c3e73d7dddde8733aaab38a/e/aab74ebe8122bfda9ac3ac4f)
+**Inverse kinematics.** I used `inverseKinematics()` to reach the target [0.5, 0.3, 1.2] m. Plugging the solution back in returns exactly that point.
 
----
+**Trajectory.** A 0.2 m-radius circle in the XY plane over 2 s with a smooth (cycloidal) angle profile, so velocity and acceleration start and end at zero. IK is solved at every step.
 
-## 🎯 Project Tasks
+**Inverse dynamics, and a debugging story.** The first run gave a peak torque of **3,135 Nm** on the shoulder, which made no sense for this robot. The cause was Onshape exporting mass and inertia in lbm and lbm·in², which Simscape then read as SI. After converting all six bodies, the total mass dropped from 467 kg to 191 kg and the shoulder peak came down to **1,066 Nm**.
 
-### 1. Forward Kinematics
-- Import GP255 robot using `importrobot('GP255')`
-- Compute end-effector pose at home configuration using `getTransform()`
-- Verify joint angle → end-effector position mapping
+**Motor-level control.** I replaced the ideal joint actuators with DC motor → gearbox → revolute joint chains (100:1 on J1–J3, 50:1 on J4–J5, 30:1 on J6, ±24 V supply). Each joint got its own PID, tuned one at a time because the inertias differ by orders of magnitude between the shoulder and the wrist. The arm tracks circles, spirals and a short choreographed sequence, and the Simscape torques agree with the MATLAB inverse-dynamics results.
 
-### 2. Inverse Kinematics
-- Set up IK solver using `inverseKinematics()`
-- Target position: `[0.5, 0.3, 1.2]` meters
-- Solve for joint angles and verify end-effector position
+The full write-up, including the DH derivation, tuning notes and plots, is in [`docs/GP25_Final_Report.pdf`](docs/GP25_Final_Report.pdf).
 
-### 3. Circular Trajectory Planning
-- Plan a **circular trajectory** (radius = 0.2m) in the XY plane
-- Uses a **trapezoidal velocity profile** (theta ramp)
-- Duration: 2 seconds, 201 time steps
-- Computes joint positions `q_traj` and velocities `dq_traj` via IK at each step
+## Files
 
-### 4. Joint Torque Analysis (Inverse Dynamics)
-- Computes required **joint torques** using `inverseDynamics()`
-- Reports **peak torque** and **average torque** per joint
-- Validates motor selection for each joint
+| File | Purpose |
+|---|---|
+| `GP255X.m` | Main script: FK, IK, circular trajectory, inverse dynamics |
+| `GP255.slx` | Simscape Multibody model with motors, gearboxes and PID loops |
+| `GP2552.m` | Re-imports the assembly from Onshape (`smexportonshape` → `smimport`) |
+| `GP251.xml`, `GP251_DataFile.m`, `GP25_DataFile.m` | Simscape import description and body parameters |
+| `_*_AXIS_*.step` | Link geometry (S, L, U, R, B, T axes and base) used by the model |
 
-### 5. Simscape Multibody Simulation
-- Robot imported via `smexportonshape()` from OnShape
-- Full physics simulation with joint constraints and contact
-- Animated in Simscape Mechanics Explorer
+CAD source: [Onshape document](https://cad.onshape.com/documents/08b071bf0234bff7ace22b17/w/4c3e73d7dddde8733aaab38a/e/aab74ebe8122bfda9ac3ac4f)
+
+## Running it
+
+MATLAB R2024b or newer with Simulink, Simscape, Simscape Multibody, Simscape Electrical and Robotics System Toolbox. Keep the STEP files in the same folder as the model. Run `GP255X.m`, then open `GP255.slx`.
 
 ---
-
-## 📁 File Structure
-
-```
-├── 🤖 MATLAB Scripts
-│   ├── GP255X.m              — Main script: FK, IK, trajectory, torque analysis
-│   ├── GP255_DataFile.m      — Robot data file (auto-generated from import)
-│   ├── GP25_DataFile.m       — Alternative data file
-│   ├── GP2552.m              — OnShape import script (smexportonshape)
-│   └── GP251.xml             — Robot XML description
-│
-├── 🔧 Simulink / Simscape
-│   └── GP255.slx             — Full Simscape Multibody simulation model
-│
-├── 📐 CAD Files (.step)
-│   ├── _BASE_AXIS_SW0001.step    — Robot base axis
-│   ├── _B_AXIS_SW0001.step       — B-axis (J1)
-│   ├── _L_AXIS_SW0002.step       — L-axis (J2)
-│   ├── _R_AXIS_SW0001.step       — R-axis (J3)
-│   ├── _S_AXIS_SW0001.step       — S-axis (J4)
-│   ├── _T_AXIS_SW0001.step       — T-axis (J5)
-│   └── _U_AXIS_SW0001.step       — U-axis (J6)
-│
-├── 📄 Report
-│   └── UHCI4H.pdf            — Full assignment report
-│
-└── on shape link.txt         — Link to OnShape CAD model
-```
-
----
-
-## 🚀 How to Run
-
-### Requirements
-- MATLAB R2024a or later
-- Robotics System Toolbox
-- Simulink + Simscape Multibody
-
-### Steps
-1. Clone the repository
-2. In MATLAB, add the folder to path
-3. Run `GP255X.m` for kinematics + trajectory + torque analysis
-4. Open `GP255.slx` in Simulink for Simscape simulation
-
-### To re-import from OnShape:
-```matlab
-assemblyURL = "https://cad.onshape.com/documents/08b071bf0234bff7ace22b17/...";
-exportedModel = smexportonshape(assemblyURL);
-smimport(exportedModel);
-```
-
----
-
-## 📊 Trajectory
-
-The circular trajectory is defined as:
-
-```
-θ(t) = 2π(t/T − sin(2πt/T)/(2π))   [trapezoidal velocity profile]
-x(t) = x₀ + r·cos(θ(t))
-y(t) = y₀ + r·sin(θ(t))
-z(t) = z₀  [constant height]
-```
-
-Where: `x₀=0.5m`, `y₀=0.3m`, `z₀=1.2m`, `r=0.2m`, `T=2s`
-
----
-
-*Mechatronics Engineering BSc. — University of Debrecen, 2026*
+<sub>Part of [Mohammed Emad's engineering portfolio](https://github.com/Mohammed-Emad-2004).</sub>
